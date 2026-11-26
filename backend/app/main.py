@@ -1,10 +1,11 @@
+import re
 from datetime import datetime, timezone
 from bson import ObjectId
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pymongo import ReturnDocument
 from app.db import client, journals, pages
-from app.models import JournalCreate, PageCreate, PageUpdate
-from fastapi.middleware.cors import CORSMiddleware
+from app.models import JournalCreate, JournalUpdate, PageCreate, PageUpdate
 
 app = FastAPI()
 
@@ -67,3 +68,31 @@ async def update_page(page_id: str, changes: PageUpdate):
     if result is None:
         raise HTTPException(status_code=404, detail="Page not found")
     return to_json(result)
+
+
+# Change a journal (color, name, visibility)
+@app.patch("/journals/{journal_id}")
+async def update_journal(journal_id: str, changes: JournalUpdate):
+    updates = changes.model_dump(exclude_unset=True)
+    if not updates:
+        raise HTTPException(status_code=400, detail="Nothing to change")
+    result = await journals.find_one_and_update(
+        {"_id": ObjectId(journal_id)},
+        {"$set": updates},
+        return_document=ReturnDocument.AFTER,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Journal not found")
+    return to_json(result)
+
+
+# Search every page's title and body
+@app.get("/search")
+async def search(q: str):
+    pattern = {"$regex": re.escape(q), "$options": "i"}
+    docs = (
+        await pages.find({"$or": [{"title": pattern}, {"body": pattern}]})
+        .sort("updated_at", -1)
+        .to_list(50)
+    )
+    return [to_json(d) for d in docs]

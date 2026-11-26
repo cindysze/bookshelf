@@ -23,3 +23,8 @@ class PageUpdate(BaseModel):
     journal_id: str | None = None
     title: str = Field(default=None, max_length=120)
     body: str = Field(default=None, min_length=1)
+
+class JournalUpdate(BaseModel):
+    title: str = Field(default=None, min_length=1, max_length=40)
+    cover: Cover = Field(default=None)
+    visibility: Literal["private", "friends", "selected"] = Field(default=None)
